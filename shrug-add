@@ -1,0 +1,13 @@
+#!/bin/dash
+
+# Error if shrug-add gets called before shrug=init
+[ ! -d .shrug ] && echo "$0: error: no .shrug directory containing shrug repository exists" 1>&2 && exit 1
+
+for filename in $@
+do
+	if [ -d .shrug/index/"$filename" ]
+	then
+		rm ./.shrug/index/"$filename"
+	fi
+	cp ./"$filename" ./.shrug/index/
+done 
