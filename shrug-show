@@ -1,0 +1,47 @@
+#!/bin/dash
+
+if [ ! -d .shrug ] 
+then
+	echo "$0: error: no .shrug directory containing shrug repository exists" 1>&2
+	exit 1
+fi
+
+if [ $# -ne 1 ]
+then
+	echo "usage: shrug-show <commit>:<filename>" 1>&2
+	exit 1 
+fi
+
+if ! echo "$1" | grep -Eq  '^[0-9]*:.*$' 
+then
+	echo "$0: error: invalid object $1" 1>&2
+	exit 1	
+fi
+
+commitSeq=$(echo $1 | cut -d':' -f1)
+filename=$(echo $1 | cut -d':' -f2)
+
+if [ ! -d .shrug/commit/"$commitSeq" ]
+then
+	echo "$0: error: unknown commit '$commitSeq'" 1>&2
+	exit 1
+fi
+if [ -z "$commitSeq" ] 
+then
+	if [ ! -f .shrug/index/"$filename" ]
+	then
+		echo "$0: error: '$filename' not found in index"
+		exit 1
+	fi
+		
+	cat .shrug/index/"$filename"
+	exit 0
+fi
+
+if [ ! -f .shrug/commit/"$commitSeq"/"$filename" ] 
+then 
+	echo "$0: error: '$filename' not found in commit $commitSeq" 1>&2
+	exit 1
+fi
+
+cat .shrug/commit/"$commitSeq"/"$filename"
