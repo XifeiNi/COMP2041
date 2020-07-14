@@ -4,4 +4,6 @@
 
 mkdir .shrug
 mkdir .shrug/index
+mkdir .shrug/commit
+mkdir .shrug/local
 echo 'Initialized empty shrug repository in .shrug'
