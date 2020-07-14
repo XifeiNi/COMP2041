@@ -12,6 +12,13 @@ while getopts ":am" opt
 do
 	case ${opt} in
 		a)
+			for toAdd in .shrug/index/*
+			do
+				if [ -f "${toAdd##*/}" ]
+				then
+					cp "${toAdd##*/}" .shrug/index
+				fi		
+			done
 			;;
 		m)
 			;;
