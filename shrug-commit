@@ -3,7 +3,7 @@
 # @throw Error: not a shrug repo
 if [ ! -d .shrug ] 
 then
-	echo "$0:  error: no .shrug directory containing shrug repository exists" 1>&2
+	echo "$0: error: no .shrug directory containing shrug repository exists" 1>&2
 	exit 1
 fi
 
@@ -63,3 +63,5 @@ mkdir .shrug/commit/"$commitSeq"
 commitMsg=$(echo "$@" | sed 's/^-[am]* //' | sed  's/^-[am]* //')
 echo "$commitMsg" > ".shrug/commit/$commitSeq/msg"
 echo "Committed as commit $commitSeq"
+
+cp .shrug/index/* .shrug/commit/"$commitSeq"/
