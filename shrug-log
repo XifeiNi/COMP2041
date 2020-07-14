@@ -1,0 +1,21 @@
+#!/bin/dash
+
+# @throw Error: not a shrug repo
+if [ ! -d .shrug ] 
+then
+	echo "$0: error: no .shrug directory containing shrug repository exists" 1>&2
+	exit 1
+fi
+
+if [ $(ls .shrug/commit/ | wc -l) -eq 0
+then
+	echo "$0: error: your repository does not have any commits yet" 1>&2
+	exit 1
+fi
+
+commitRecord=$(ls .shrug/commit/ | sort -r)
+
+for commit in $commitRecord
+do
+	echo $commit $(cat .shrug/commit/"$commit"/msg)	
+done
