@@ -1,0 +1,82 @@
+#!/bin/dash
+
+# @throw Error: not a shrug repo
+if [ ! -d .shrug ] 
+then
+	echo "$0: error: no .shrug directory containing shrug repository exists" 1>&2
+	exit 1
+fi
+
+force=0
+cache=0
+
+if echo "$@" | grep -Eq '\s?--force\s?'
+then
+	force=1
+fi
+
+if echo "$@" | grep -Eq '\s?--cached\s?'
+then
+        cache=1
+fi
+filesToRemove=$(echo "$@" | sed 's/--force//' | sed 's/--cached//')
+
+if [ $force -eq 1 ] && [ $cache -eq 1 ]
+then
+	echo "usage: shrug-rm [--force] [--cached] <filenames>" 1>&2
+	exit 1
+fi
+
+#if [ $filesToRemove = "" ]
+#then
+#	echo "usage: shrug-rm [--force] [--cached] <filenames>" 1>&2
+#        exit 1
+#fi
+
+# whether file exit in index
+for filename in $filesToRemove
+do
+	if [ ! -f .shrug/index/"$filename" ]
+	then
+		echo "$0: error: '$filename' is not in the shrug repository" 1>&2
+		exit 1
+	fi
+done
+
+if [ $force -eq 1 ]
+then
+	for filename in $filesToRemove
+	do
+		rm -f "$filename"
+		rm -f .shrug/index/"$filename"
+	done
+elif [ $cache -eq 1 ]
+then
+	for filename in $filesToRemove
+	do
+		rm .shrug/index/"$filename"
+	done
+else
+	for filename in $filesToRemove
+	do 
+		if ! diff -N "$filename" .shrug/index/"$filename" >/dev/null && \
+		   ! diff -N .shrug/index/"$filename" .shrug/local/"$filename"	 >/dev/null && \
+		   ! diff -N "$filename" .shrug/local/"$filename"
+		then
+			echo "$0: error: '$filename' in index is different to both working file and repository" 1>&2
+			exit 1
+		elif ! diff -N "$filename" .shrug/index/"$filename" >/dev/null && \
+		     ! diff -N .shrug/index/"$filename" .shrug/local/"$filename"   >/dev/null
+		then
+			echo "$0: error: '$filename' in repository is different to working file" 1>&2
+			exit 1
+		elif ! diff -N .shrug/index/"$filename" .shrug/local/"$filename"   >/dev/null
+		then
+			echo "$0: error: '$filename' has changes staged in the index" 1>&2
+			exit 1
+		else
+			rm "$filename"
+			rm .shrug/index/"$filename"
+		fi
+	done
+fi
