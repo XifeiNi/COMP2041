@@ -33,5 +33,33 @@ then
         exit 1
 fi
 
+changed=0
+for filename in ".shrug/index"/*
+do
+	
+	if [ -f ".shrug/local/${filename##*/}" ]
+	then
+		if cmp -s "$filename" ".shrug/local/${filename##*/}"
+		then
+			continue
+		else
+			changed=1
+		fi
+		rm ".shrug/local/${filename##*/}"
+	else
+		changed=1
+	fi
+	cp "$filename" ".shrug/local/${filename##*/}"
+done
+if [ $changed -eq 0 ]
+then
+	echo "nothing to commit"
+	exit 1
+fi
 
+commitSeq=$(ls -l .shrug/commit/ | egrep '^d' | wc -l)
 
+mkdir .shrug/commit/"$commitSeq"
+commitMsg=$(echo "$@" | sed 's/^-[am]* //' | sed  's/^-[am]* //')
+echo "$commitMsg" > ".shrug/commit/$commitSeq/msg"
+echo "Committed as commit $commitSeq"

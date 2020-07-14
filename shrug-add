@@ -5,7 +5,16 @@
 
 for filename in $@
 do
-	if [ -d .shrug/index/"$filename" ]
+	if [ ! -f ./"$filename" ] 
+	then
+		echo "$0: error: can not open '$filename'"
+		exit 1
+	fi
+done
+
+for filename in $@
+do
+	if [ -f .shrug/index/"$filename" ]
 	then
 		rm ./.shrug/index/"$filename"
 	fi
