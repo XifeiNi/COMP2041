@@ -1,3 +1,5 @@
+#!/bin/dash
+
 rm -r .shrug/
 sh shrug-init
 echo 1 >a

@@ -1,0 +1,22 @@
+#!/bin/dash
+
+# @throw Error: not a shrug repo
+if [ ! -d .shrug ] 
+then
+	echo "$0: error: no .shrug directory containing shrug repository exists" 1>&2
+	exit 1
+fi
+
+if [ $(ls .shrug/commit/ | wc -l) -eq 0 ]
+then
+        echo "$0: error: your repository does not have any commits yet" 1>&2
+        exit 1
+fi
+
+if [ $# -ne 1 ]
+then
+	echo "usage: shrug-checkout <branch>"
+	exit 1
+fi
+
+

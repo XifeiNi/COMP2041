@@ -1,0 +1,93 @@
+#!/bin/dash
+
+# @throw Error: not a shrug repo
+if [ ! -d .shrug ] 
+then
+	echo "$0: error: no .shrug directory containing shrug repository exists" 1>&2
+	exit 1
+fi
+
+if [ $(ls .shrug/commit/ | wc -l) -eq 0 ]
+then 
+	echo "$0: error: your repository does not have any commits yet"
+	exit 1
+fi
+
+delete=0
+while getopts ":d" opt
+do
+	case ${opt} in
+		d)
+			delete=1		
+			;;
+		\?)
+			echo "usage: shrug-branch [-d] <branch>" 1>&2
+			exit 1
+			;;
+		:)
+			echo "usage: shrug-branch [-d] <branch>" 1>&2 
+			exit 1
+			;;
+	esac
+done
+
+branchName=$(echo "$@" | sed 's/^-[d]* //')
+if [ $delete -eq 0 ]
+then
+	for branch in $(cat .shrug/BRANCH)
+	do
+		if [ "$branch" = "$branchName" ]
+		then
+			echo "$0: error: branch 'master' already exists" 1>&2
+			exit 1			
+		fi
+	done
+	
+	if [ -z "$branchName" ]
+	then
+		for branch in $(cat .shrug/BRANCH | sort)
+		do
+			echo "$branch"
+		done
+	fi
+	if [ ! -z "$branchName" ]
+	then
+		echo "$branchName" >> .shrug/BRANCH
+		mkdir .shrug/"$branchName"
+		mkdir .shrug/"$branchName"/index
+		mkdir .shrug/"$branchName"/commit
+	fi
+else
+	if [ -z "$branchName" ]
+	then
+		echo "usage: shrug-branch [-d] <branch>" 1>&2
+		exit 1
+	fi
+
+	if [ "$branchName" = "master" ]
+	then
+		echo "$0: error: can not delete branch 'master'" 1>&2
+		exit 1
+	fi 
+	exist=0
+	touch .shrug/tmp
+	for branch in $(cat .shrug/BRANCH | sort)
+	do
+		if [ "$branch" = "$branchName" ]
+		then
+			exist=1
+			continue
+		fi
+		echo "$branch" >> .shrug/tmp
+	done
+	cp .shrug/tmp .shrug/BRANCH
+	rm .shrug/tmp
+	if [ $exist -eq 0 ]
+	then
+		echo "$0: error: branch '$branchName' does not exist" 1>&2
+		exit 1
+	fi
+
+	rm -r .shrug/"$branchName"
+	echo "Deleted branch '$branchName'"
+fi

@@ -1,3 +1,5 @@
+#!/bin/dash
+
 rm -r .shrug
 if [ -f a.txt ] 
 then
