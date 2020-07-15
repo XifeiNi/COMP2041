@@ -21,12 +21,6 @@ then
 fi
 filesToRemove=$(echo "$@" | sed 's/--force//' | sed 's/--cached//')
 
-if [ $force -eq 1 ] && [ $cache -eq 1 ]
-then
-	echo "usage: shrug-rm [--force] [--cached] <filenames>" 1>&2
-	exit 1
-fi
-
 #if [ $filesToRemove = "" ]
 #then
 #	echo "usage: shrug-rm [--force] [--cached] <filenames>" 1>&2
@@ -47,10 +41,14 @@ if [ $force -eq 1 ]
 then
 	for filename in $filesToRemove
 	do
-		rm -f "$filename"
+		if [ $cache -eq 0 ]
+		then
+			rm -f "$filename"
+		fi
+
 		rm -f .shrug/index/"$filename"
 	done
-elif [ $cache -eq 1 ]
+elif [ $cache -eq 1 ] && [ $force -eq 0 ]
 then
 	for filename in $filesToRemove
 	do
