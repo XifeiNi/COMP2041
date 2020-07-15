@@ -54,23 +54,36 @@ elif [ $cache -eq 1 ]
 then
 	for filename in $filesToRemove
 	do
+		if [ -f "$filename" ] && \
+		   ! diff -Nu "$filename" .shrug/index/"$filename" >/dev/null && \
+                   ! diff -Nu .shrug/index/"$filename" .shrug/local/"$filename"  >/dev/null && \
+                   ! diff -Nu "$filename" .shrug/local/"$filename"  >/dev/null
+		then
+			echo "$0: error: '$filename' in index is different to both working file and repository" 1>&2
+                        exit 1
+		fi
 		rm .shrug/index/"$filename"
 	done
 else
 	for filename in $filesToRemove
 	do 
-		if ! diff -N "$filename" .shrug/index/"$filename" >/dev/null && \
-		   ! diff -N .shrug/index/"$filename" .shrug/local/"$filename"	 >/dev/null && \
-		   ! diff -N "$filename" .shrug/local/"$filename"
+		if ! diff -Nu "$filename" .shrug/index/"$filename" >/dev/null && \
+		   ! diff -Nu .shrug/index/"$filename" .shrug/local/"$filename"	 >/dev/null && \
+		   ! diff -Nu "$filename" .shrug/local/"$filename"  >/dev/null
 		then
 			echo "$0: error: '$filename' in index is different to both working file and repository" 1>&2
 			exit 1
-		elif ! diff -N "$filename" .shrug/index/"$filename" >/dev/null && \
-		     ! diff -N .shrug/index/"$filename" .shrug/local/"$filename"   >/dev/null
+		elif ! diff -Nu "$filename" .shrug/index/"$filename" >/dev/null && \
+		      diff -Nu .shrug/index/"$filename" .shrug/local/"$filename"   >/dev/null
 		then
 			echo "$0: error: '$filename' in repository is different to working file" 1>&2
 			exit 1
-		elif ! diff -N .shrug/index/"$filename" .shrug/local/"$filename"   >/dev/null
+
+		elif [ -f "$filename" ] && [ -f .shrug/index/"$filename" ] && [ ! -f .shrug/local/"$filename" ]
+		then
+			echo "$0: error: '$filename' has changes staged in the index" 1>&2
+                        exit 1
+		elif ! diff -Nu .shrug/index/"$filename" .shrug/local/"$filename"   >/dev/null
 		then
 			echo "$0: error: '$filename' has changes staged in the index" 1>&2
 			exit 1

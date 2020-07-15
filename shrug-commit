@@ -63,6 +63,7 @@ do
 	if [ ! -f ".shrug/index/${file##*/}" ]
 	then	
 		changed=1
+		rm .shrug/local/"$file"
 	fi
 done
 
