@@ -1,0 +1,68 @@
+#!/bin/dash
+
+# @throw Error: not a shrug repo
+if [ ! -d .shrug ] 
+then
+	echo "$0: error: no .shrug directory containing shrug repository exists" 1>&2
+	exit 1
+fi
+
+for filename in $(ls .shrug/index/)
+do
+	if [ ! -f "$filename" ] && \
+	   [ -f .shrug/local/"$filename" ] 
+	then
+		echo "$filename - file deleted"
+	fi
+
+	if [ ! -f .shrug/local/"$filename" ]
+	then
+		echo "$filename - added to index"
+		continue
+	fi
+
+	if [ -f .shrug/local/"$filename" ] && \
+	   [ -f "$filename" ] 
+	then
+		# same as commit
+		if diff .shrug/local/"$filename" .shrug/index/"$filename" >/dev/null && \
+		   diff .shrug/index/"$filename" "$filename" >/dev/null
+		then
+			echo "$filename - same as repo"
+			continue
+		fi
+
+		if diff .shrug/local/"$filename" .shrug/index/"$filename" >/dev/null || \
+		   diff .shrug/index/"$filename" "$filename" >/dev/null
+		then
+			echo "$filename - file changed, changes not staged for commit"
+			continue
+		fi
+
+		if ! diff .shrug/index/"$filename" "$filename" >/dev/null && \
+		   ! diff .shrug/index/"$filename" "$filename" >/dev/null && \
+		   ! diff .shrug/local/"$filename" "$filename" >/dev/null
+		then
+			echo "$filename - - file changed, different changes staged for commit"
+			continue
+		fi
+	fi
+done
+
+for filename in $(ls .shrug/local/)
+do
+	if [ ! -f "$filename" ] && \
+           [ ! -f .shrug/index/"$filename" ]
+	then
+		echo "$filename - deleted"
+	fi
+done 
+
+for file in $(ls)
+do
+	if [ ! -f .shrug/index/"$file" ]
+	then
+		echo "$file - untracked"
+	fi
+done
+
