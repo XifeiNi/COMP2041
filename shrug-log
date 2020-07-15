@@ -7,7 +7,7 @@ then
 	exit 1
 fi
 
-if [ $(ls .shrug/commit/ | wc -l) -eq 0
+if [ $(ls .shrug/commit/ | wc -l) -eq 0 ]
 then
 	echo "$0: error: your repository does not have any commits yet" 1>&2
 	exit 1

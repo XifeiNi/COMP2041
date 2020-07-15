@@ -5,7 +5,7 @@
 
 for filename in $@
 do
-	if [ ! -f ./"$filename" ] && [ ! -f .shrug/index/"$filename" ] 
+	if [ ! -f "$filename" ] && [ ! -f .shrug/index/"$filename" ] 
 	then
 		echo "$0: error: can not open '$filename'"
 		exit 1
@@ -16,8 +16,8 @@ for filename in $@
 do
 	if [ ! -f "$filename" ] && [ -f .shrug/index/"$filename" ]
 	then
-		rm ./.shrug/index/"$filename"
+		rm .shrug/index/"$filename"
 		continue
 	fi
-	cp ./"$filename" ./.shrug/index/
+	cp "$filename" .shrug/index/
 done 

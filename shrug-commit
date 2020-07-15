@@ -41,12 +41,11 @@ then
 fi
 
 changed=0
-for filename in ".shrug/index"/*
+for filename in $(ls .shrug/index/)
 do
-	
 	if [ -f ".shrug/local/${filename##*/}" ]
 	then
-		if cmp -s "$filename" ".shrug/local/${filename##*/}"
+		if cmp -s ".shrug/index/$filename" ".shrug/local/${filename##*/}"
 		then
 			continue
 		else
@@ -56,8 +55,17 @@ do
 	else
 		changed=1
 	fi
-	cp "$filename" ".shrug/local/${filename##*/}"
+	cp ".shrug/index/$filename" ".shrug/local/${filename##*/}"
 done
+
+for file in $(ls .shrug/local/)
+do
+	if [ ! -f ".shrug/index/${file##*/}" ]
+	then	
+		changed=1
+	fi
+done
+
 if [ $changed -eq 0 ]
 then
 	echo "nothing to commit"
@@ -71,4 +79,7 @@ commitMsg=$(echo "$@" | sed 's/^-[am]* //' | sed  's/^-[am]* //')
 echo "$commitMsg" > ".shrug/commit/$commitSeq/msg"
 echo "Committed as commit $commitSeq"
 
-cp .shrug/index/* .shrug/commit/"$commitSeq"/
+if [ $(ls .shrug/index | wc -l) -ne 0 ]
+then
+	cp .shrug/index/* .shrug/commit/"$commitSeq"/
+fi
