@@ -1,2 +1,3 @@
 #!/bin/dash
-	cd /tmp
+cd /tmp
+pwd

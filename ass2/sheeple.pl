@@ -12,6 +12,7 @@ if ($#ARGV < 0) {
 sub shellToPerl {
 	@perlLines = ();
 	foreach my $shellLine (@_) {
+		my $leadingSpaces = getLeadingSpaces($shellLine);
 		$shellLine=~s/^\s*//;
 		chomp $shellLine;
 		# start line
@@ -21,7 +22,7 @@ sub shellToPerl {
 		# echo
 		elsif ($shellLine =~ /echo (.*)/) {
 			$shellLine =~ s?echo (.*)?print "$1\\n";?;
-			push(@perlLines, $shellLine);
+			push(@perlLines, $leadingSpaces.$shellLine);
 		} 
 		# system functions
 		elsif ($shellLine =~ /cd (.*)/ 
@@ -31,12 +32,40 @@ sub shellToPerl {
 			or $shellLine =~ /ls/
 			or $shellLine =~ /ls (.*)/ ) {
 			my $sysLine = qq/system "$shellLine";/;
-			push(@perlLines, $sysLine);
+			push(@perlLines, $leadingSpaces.$sysLine);
 		}
 		# variable assignment
 		elsif ($shellLine =~ /^(\w+)\s*=\s*(.*)$/) {
 			my $assignLine = qq/\$$1 = '$2';/;
-			push(@perlLines, $assignLine);
+			push(@perlLines, $leadingSpaces.$assignLine);
+		}
+		# curly bracket at the end of loop
+		elsif ($shellLine =~ /done/) {
+			push(@perlLines, $leadingSpaces."}");
+		}
+		# loop statement
+		elsif ($shellLine =~ /^for (.*) in (.*)/) {
+			@array =  split(" ", $2);
+			my $loopString = "";
+			if (scalar @array == 1) {
+				$loopString = qq/(glob("$2"))/;
+			} else {
+				@newArray = ();
+				foreach $element (@array) {
+					push(@newArray, qq/'$element'/);
+				}
+				$loopString = '('.join(' , ', @newArray).')';
+			}
+			my $forString = qq/foreach \$$1 $loopString {/;
+			push(@perlLines, $leadingSpaces.$forString);
+		}
+		elsif ($shellLine =~ /exit (.*)/) {
+			push(@perlLines, $leadingSpaces.$shellLine);			
+		}
+		# read line
+		elsif ($shellLine =~ /read (.*)/) {
+			push(@perlLines, $leadingSpaces."\$$1 = <STDIN>;");
+			push(@perlLines, $leadingSpaces."chomp \$$1;");
 		}
 	}	
 	printPerlLines(@perlLines);
@@ -47,4 +76,10 @@ sub printPerlLines {
 		print "$perl\n";
 	}
 
+}
+
+sub getLeadingSpaces {
+	my $string = $_[0];
+	$string =~ /^(\s*)/;
+	return $1;		
 }
