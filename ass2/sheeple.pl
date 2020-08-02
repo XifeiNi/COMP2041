@@ -22,6 +22,10 @@ sub shellToPerl {
 		# echo
 		elsif ($shellLine =~ /echo (.*)/) {
 			$shellLine =~ s?echo (.*)?print "$1\\n";?;
+			if ($shellLine =~ /\$(\d)/) {
+				my $arg = int($1) - 1;
+				$shellLine =~ s?\$(\d)?\$ARGV[$arg]?;
+			}
 			push(@perlLines, $leadingSpaces.$shellLine);
 		} 
 		# system functions
