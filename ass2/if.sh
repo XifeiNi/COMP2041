@@ -1,5 +1,5 @@
 #!/bin/dash
-if test Andrew = great
+if test Andrew =  great
 then
     echo correct
 else

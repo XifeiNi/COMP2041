@@ -21,12 +21,18 @@ sub shellToPerl {
 		} 
 		# echo
 		elsif ($shellLine =~ /echo (.*)/) {
-			$shellLine =~ s?echo (.*)?print "$1\\n";?;
+			$shellLine =~ s?echo\s*['|"]{0,1}(.*)['|"]{0,1}?$1?;
+			$shellLine =~ s?'??;		
+			$shellLine =~ s?"$??;	
+			$shellLine =~ s?"?\\"?g;
 			if ($shellLine =~ /\$(\d)/) {
 				my $arg = int($1) - 1;
 				$shellLine =~ s?\$(\d)?\$ARGV[$arg]?;
 			}
-			push(@perlLines, $leadingSpaces.$shellLine);
+			push(@perlLines, $leadingSpaces.qq/print "$shellLine\\n";/);
+		}
+		elsif ($shellLine =~ /else/) {
+			push(@perlLines, $leadingSpaces."} else {");
 		} 
 		# system functions
 		elsif ($shellLine =~ /cd (.*)/ 
@@ -43,8 +49,12 @@ sub shellToPerl {
 			my $assignLine = qq/\$$1 = '$2';/;
 			push(@perlLines, $leadingSpaces.$assignLine);
 		}
-		# curly bracket at the end of loop
-		elsif ($shellLine =~ /done/) {
+		elsif ($shellLine =~ /^then$/) {
+			push(@perlLines, $leadingSpaces."{");
+		}
+		# curly bracket at the control block
+		elsif ($shellLine =~ /^done$/
+			or $shellLine =~ /^fi$/) {
 			push(@perlLines, $leadingSpaces."}");
 		}
 		# loop statement
@@ -71,8 +81,39 @@ sub shellToPerl {
 			push(@perlLines, $leadingSpaces."\$$1 = <STDIN>;");
 			push(@perlLines, $leadingSpaces."chomp \$$1;");
 		}
+		elsif ($shellLine =~ /^(\w+)\s+test\s+(\w+)\s*(\W+)\s*(\w+)/
+			and !containSlash($shellLine)) {
+			my $if = $1;
+			if ($1 eq "elif") {
+				$if = "} elsif";
+			}
+			my $operator = getOperator($3);
+			push(@perlLines, $leadingSpaces.qq/$if ('$2'$operator'$4')/);
+			
+		}
+		# if [ -d /dev/null ]
+		elsif ($shellLine =~ /^(\w+)\s+\[\s+(-\w)\s+(.*)\s+\]/) {
+			my $if = $1;
+                        if ($1 eq "elif") {
+                                $if = "} elsif";
+                        }
+			push(@perlLines, $leadingSpaces.qq/$if ($2 '$3')/);	
+		}
+		# if test -r /dev/null
+		elsif ($shellLine =~ /^(\w+)\s+test\s+(-\w)\s+(.*)/ and containSlash($shellLine)) {
+			my $if = $1;
+                        if ($1 eq "elif") {
+                                $if = "} elsif";
+                        }
+			push(@perlLines, $leadingSpaces.qq/$if ($2 '$3')/);
+		}
 	}	
 	printPerlLines(@perlLines);
+}
+
+sub containSlash {
+	my $string = $_[0];
+	return $string =~ /-/;
 }
 
 sub printPerlLines {
@@ -80,6 +121,18 @@ sub printPerlLines {
 		print "$perl\n";
 	}
 
+}
+
+sub getOperator {
+	my $string = $_[0];
+	my $operator = "";
+	if ($string =~ /!=/) {
+		$operator = " ne ";
+	} else {
+		$operator = " eq ";
+	}
+	return $operator;
+	
 }
 
 sub getLeadingSpaces {
