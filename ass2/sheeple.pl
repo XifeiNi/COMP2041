@@ -9,24 +9,37 @@ if ($#ARGV < 0) {
 	shellToPerl(@shellFile);
 }
 
+my $inFunctionScope = 0;
 sub shellToPerl {
 	@perlLines = ();
 	foreach my $shellLine (@_) {
 		my $leadingSpaces = getLeadingSpaces($shellLine);
 		$shellLine=~s/^\s*//;
 		chomp $shellLine;
-		if ($shellLine =~ /^#[^!].*/) {
-			push(@perlLines, $shellLine);
+		if ($shellLine =~ /^\s*#[^!].*/) {
+			push(@perlLines, $leadingSpaces.$shellLine);
 			next;
+		}
+		
+		if ($shellLine =~ /#([^!].*)/) {
+			push(@perlLines, qq\$leadingSpaces#$1\);
+			$shellLine =~ s/$1//;
+			$shellLine =~ s/#//;
+			$shellLine =~ s/\s+//g;
 		}
 
 		if ($shellLine =~ /\$(\d)/) {
                         my $arg = int($1) - 1;
-                        $shellLine =~ s?\$(\d)?\$ARGV[$arg]?;
+			if ($inFunctionScope) {
+                        	$shellLine =~ s?\$(\d)?\$_[$arg]?;
+			} else {
+                        	$shellLine =~ s?\$(\d)?\$ARGV[$arg]?;
+			}
                 }
 
-		if ($shellLine =~ /\$\@/) {
+		if (not $inFunctionScope) {
 			$shellLine =~ s?\$\@?\@ARGV?;
+			$shellLine =~ s?\$\#?\@#ARGV?;
 		}
 
 		# start line
@@ -59,10 +72,10 @@ sub shellToPerl {
 			push(@perlLines, $leadingSpaces.$sysLine);
 		}
 
-		# variable assignment
+		# variable assignment outside of function
 		elsif ($shellLine =~ /^(\w+)\s*=\s*(.*)$/) {
 			my $assignLine = "";
-			if (containDollar($2)) {
+			if (containDollar($2) or pureNumeric($2)) {
 				my $newAss = evalLeftHandSide($2);
 				$assignLine = qq/\$$1 = $newAss;/;
 			} else {
@@ -71,7 +84,23 @@ sub shellToPerl {
 			} 
 			push(@perlLines, $leadingSpaces.$assignLine);
 		}
-
+		
+		#variable assignment inside of function (e.g) local n i
+		elsif ($shellLine =~ /local/) {
+			my @variables =  split / /,$shellLine;
+			my $start = 1;
+			my $assign = "my (";
+			while ($start < scalar @variables) {
+				if ($start == 1) {
+					$assign = $assign."\$".$variables[$start];
+				} else {
+					$assign = $assign.", \$".$variables[$start];
+				}
+				$start = $start + 1;
+			}
+			$assign = $assign.");";
+			push(@perlLines, $leadingSpaces.$assign);
+		}	
 		# then
 		elsif ($shellLine =~ /^then$/) {
 			push(@perlLines, $leadingSpaces."{");
@@ -100,8 +129,26 @@ sub shellToPerl {
 			push(@perlLines, $leadingSpaces.$forString);
 		}
 
+		# exit
 		elsif ($shellLine =~ /exit (.*)/) {
-			push(@perlLines, $leadingSpaces.$shellLine);			
+			push(@perlLines, $leadingSpaces.$shellLine.";");	
+		}
+
+		# return
+		elsif ($shellLine =~ /return (.*)/) {
+			push(@perlLines, $leadingSpaces.$shellLine.";");			
+		}
+
+		# start of function block
+		elsif ($shellLine =~ /(\w+)\(\)\s*{/) {
+			$inFunctionScope = 1;
+			push(@perlLines, $leadingSpaces."sub ".$1." {");
+		}  
+
+		# end of function block
+		elsif ($shellLine =~ /\s*}$/) {
+			$inFunctionScope = 0;
+			push(@perlLines, $leadingSpaces."}");
 		}
 
 		# read line
@@ -126,6 +173,12 @@ sub shellToPerl {
 			my $operator = getOperator($2);
 			push(@perlLines, $leadingSpaces.qq/while ($1$operator$3) {/);
 		}
+
+		elsif ($shellLine =~ /^while\s+test\s+(\$\w+)\s*(-\w+)\s*([0-9]+)/) {
+			my $operator = getOperator($2);
+			push(@perlLines, $leadingSpaces.qq/while ($1$operator$3) {/);
+		}
+
 
 		# if [ -d /dev/null ]
 		elsif ($shellLine =~ /^(\w+)\s+\[\s+(-\w)\s+(.*)\s+\]/) {
@@ -152,6 +205,11 @@ sub containSlash {
 	return $string =~ /-/;
 }
 
+sub pureNumeric {
+	my $string = $_[0];
+	return $string =~ /\s*[0-9]+\s*/;
+}
+
 sub containDollar {
 	my $string = $_[0];
 	return $string =~ /\$/;
@@ -161,6 +219,8 @@ sub evalLeftHandSide {
 	my $string = $_[0];
 	$string =~ s/`//g;
 	$string =~ s/expr//;
+	$string =~ s/\(//g;
+	$string =~ s/\)//g;
 	return $string;	
 }
 
