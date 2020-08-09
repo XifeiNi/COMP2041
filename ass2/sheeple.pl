@@ -20,7 +20,8 @@ sub preProcess {
 		$shellLine =~ s?\$@?\@ARGV?;
 		$shellLine =~ s?\$#?\@ARGV?;
 	}
-
+	
+	# comments
 	if ($shellLine =~ /#([^!].*)/) {
 		push(@perlLines, qq\$leadingSpaces#$1\);
 		$shellLine =~ s/$1//;
@@ -28,6 +29,7 @@ sub preProcess {
 		$shellLine =~ s/\s+//g;
 	}
 
+	# replace arg
 	if ($shellLine =~ /\$(\d)/) {
                 my $arg = int($1) - 1;
 		if ($inFunctionScope) {
@@ -39,11 +41,22 @@ sub preProcess {
 	return $shellLine;
 }
 
+sub containAnd {
+	my $string = $_[0];
+	my @shells = split('&&', $string);
+	my $retVal = "";
+	foreach $shell (@shells) {
+		
+	} 	
+}
+
 my $inFunctionScope = 0;
 sub shellToPerl {
 	@perlLines = ();
 	foreach my $shellLine (@_) {
 		my $leadingSpaces = getLeadingSpaces($shellLine);
+		
+		# comment
 		if ($shellLine =~ /^\s*#[^!].*/) {
 			push(@perlLines, $leadingSpaces.$shellLine);
 			next;
@@ -51,16 +64,27 @@ sub shellToPerl {
 		
 		my $temp = $shellLine;
 		$shellLine = preProcess($temp);
+	
 		# start line
 		if ($shellLine =~ /^#!.*/) {
 			push(@perlLines, "#!/usr/bin/perl -w");
 		} 
 
+		# contains &&
+		elsif ($shellLine =~ /&&/) {
+			my $temp = $shellLine;
+			$shellLine = containAnd($temp);
+			push(@perlLines, $leadingSpaces.$shellLine);
+		}
+
 		# echo
 		elsif ($shellLine =~ /echo (.*)/) {
+			# handle -n flag.
 			if (containSlash($shellLine)) {
-				chomp($shellLine);
+				my $temp = $shellLine;
+				$shellLine = removeTrailingNewLine($temp);	
 			}
+
 			$shellLine =~ s?echo\s*['|"]{0,1}(.*)['|"]{0,1}?$1?;
 			$shellLine =~ s?'??;		
 			$shellLine =~ s?"$??;	
@@ -77,7 +101,9 @@ sub shellToPerl {
 		elsif ($shellLine =~ /^cd (.*)/ 
 			or $shellLine =~ /^pwd/ 
 			or $shellLine =~ /^id/ 
-			or $shellLine =~ /^date/ 
+			or $shellLine =~ /^date/
+			or $shellLine =~ /^chmod/
+			or $shellLine =~ /^mv/ 
 			or $shellLine =~ /^ls/
 			or $shellLine =~ /^rm/
 			or $shellLine =~ /^ls (.*)/ ) {
@@ -250,6 +276,12 @@ sub shellToPerl {
 		}
 	}	
 	printPerlLines(@perlLines);
+}
+
+sub removeTrailingNewLine {
+	my $string = $_[0];
+	$string =~ s/\R//g;
+	return $string;
 }
 
 sub containSlash {
