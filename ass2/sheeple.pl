@@ -9,39 +9,48 @@ if ($#ARGV < 0) {
 	shellToPerl(@shellFile);
 }
 
+sub preProcess {
+	my $shellLine = $_[0];
+	my $leadingSpaces = getLeadingSpaces($shellLine);
+	$shellLine=~s/^\s*//;
+	chomp $shellLine;
+	if (not $inFunctionScope) {
+		$shellLine =~ s?"\$@"?\@ARGV?;
+		$shellLine =~ s?"\$\#"?\@ARGV?;
+		$shellLine =~ s?\$@?\@ARGV?;
+		$shellLine =~ s?\$#?\@ARGV?;
+	}
+
+	if ($shellLine =~ /#([^!].*)/) {
+		push(@perlLines, qq\$leadingSpaces#$1\);
+		$shellLine =~ s/$1//;
+		$shellLine =~ s/#//;
+		$shellLine =~ s/\s+//g;
+	}
+
+	if ($shellLine =~ /\$(\d)/) {
+                my $arg = int($1) - 1;
+		if ($inFunctionScope) {
+ 	                $shellLine =~ s?\$(\d)?\$_[$arg]?;
+		} else {
+                        $shellLine =~ s?\$(\d)?\$ARGV[$arg]?;
+		}
+        }
+	return $shellLine;
+}
+
 my $inFunctionScope = 0;
 sub shellToPerl {
 	@perlLines = ();
 	foreach my $shellLine (@_) {
 		my $leadingSpaces = getLeadingSpaces($shellLine);
-		$shellLine=~s/^\s*//;
-		chomp $shellLine;
 		if ($shellLine =~ /^\s*#[^!].*/) {
 			push(@perlLines, $leadingSpaces.$shellLine);
 			next;
 		}
 		
-		if ($shellLine =~ /#([^!].*)/) {
-			push(@perlLines, qq\$leadingSpaces#$1\);
-			$shellLine =~ s/$1//;
-			$shellLine =~ s/#//;
-			$shellLine =~ s/\s+//g;
-		}
-
-		if ($shellLine =~ /\$(\d)/) {
-                        my $arg = int($1) - 1;
-			if ($inFunctionScope) {
-                        	$shellLine =~ s?\$(\d)?\$_[$arg]?;
-			} else {
-                        	$shellLine =~ s?\$(\d)?\$ARGV[$arg]?;
-			}
-                }
-
-		if (not $inFunctionScope) {
-			$shellLine =~ s?\$\@?\@ARGV?;
-			$shellLine =~ s?\$\#?\@#ARGV?;
-		}
-
+		my $temp = $shellLine;
+		$shellLine = preProcess($temp);
 		# start line
 		if ($shellLine =~ /^#!.*/) {
 			push(@perlLines, "#!/usr/bin/perl -w");
@@ -49,6 +58,9 @@ sub shellToPerl {
 
 		# echo
 		elsif ($shellLine =~ /echo (.*)/) {
+			if (containSlash($shellLine)) {
+				chomp($shellLine);
+			}
 			$shellLine =~ s?echo\s*['|"]{0,1}(.*)['|"]{0,1}?$1?;
 			$shellLine =~ s?'??;		
 			$shellLine =~ s?"$??;	
@@ -62,12 +74,13 @@ sub shellToPerl {
 		}
  
 		# system functions
-		elsif ($shellLine =~ /cd (.*)/ 
-			or $shellLine =~ /pwd/ 
-			or $shellLine =~ /id/ 
-			or $shellLine =~ /date/ 
-			or $shellLine =~ /ls/
-			or $shellLine =~ /ls (.*)/ ) {
+		elsif ($shellLine =~ /^cd (.*)/ 
+			or $shellLine =~ /^pwd/ 
+			or $shellLine =~ /^id/ 
+			or $shellLine =~ /^date/ 
+			or $shellLine =~ /^ls/
+			or $shellLine =~ /^rm/
+			or $shellLine =~ /^ls (.*)/ ) {
 			my $sysLine = qq/system "$shellLine";/;
 			push(@perlLines, $leadingSpaces.$sysLine);
 		}
@@ -101,10 +114,6 @@ sub shellToPerl {
 			$assign = $assign.");";
 			push(@perlLines, $leadingSpaces.$assign);
 		}	
-		# then
-		elsif ($shellLine =~ /^then$/) {
-			push(@perlLines, $leadingSpaces."{");
-		}
 
 		# curly bracket at the control block
 		elsif ($shellLine =~ /^done$/
@@ -157,6 +166,7 @@ sub shellToPerl {
 			push(@perlLines, $leadingSpaces."chomp \$$1;");
 		}
 
+		# string condition
 		elsif ($shellLine =~ /^(\w+)\s+test\s+(\w+)\s*(\W+)\s*(\w+)/
 			and !containSlash($shellLine)) {
 			my $if = $1;
@@ -165,7 +175,46 @@ sub shellToPerl {
 			}
 		
 			my $operator = getOperator($3);
-			push(@perlLines, $leadingSpaces.qq/$if ('$2'$operator'$4')/);
+			push(@perlLines, $leadingSpaces.qq/$if ('$2'$operator'$4') {/);
+		}
+
+		elsif ($shellLine =~ /^(\w+)\s+test\s+(\$\w+)\s*(-.*)\s*(\$\w+)/) {
+			my $operator = getOperator($3);
+			my $if = $1;
+			if ($1 eq "elif") {
+				$if = "} elsif";
+			}
+			push(@perlLines, $leadingSpaces.qq/$if ($2$operator$4) {/);
+		
+		}
+
+		elsif ($shellLine =~ /^(\w+)\s+test\s+(@\w+)\s*(-.*)\s*(\$\w+)/) {
+			my $operator = getOperator($3);
+			my $if = $1;
+			if ($1 eq "elif") {
+				$if = "} elsif";
+			}
+			push(@perlLines, $leadingSpaces.qq/$if ($2$operator$4) {/);
+		
+		}
+
+		elsif ($shellLine =~ /^(\w+)\s+test\s+(@\w+)\s*(-.*)\s*([0-9]+)/) {
+			my $operator = getOperator($3);
+			my $if = $1;
+			if ($1 eq "elif") {
+				$if = "} elsif";
+			}
+			push(@perlLines, $leadingSpaces.qq/$if ($2$operator$4) {/);
+		
+		}
+
+		elsif ($shellLine =~ /^(\w+)\s+test\s+(\$\w+)\s*(-.*)\s*([0-9]+)/) {
+			my $operator = getOperator($3);
+			my $if = $1;
+			if ($1 eq "elif") {
+				$if = "} elsif";
+			}
+			push(@perlLines, $leadingSpaces.qq/$if ($2$operator$4) {/);
 		}
 
 		# while test $number -le $finish
@@ -179,6 +228,9 @@ sub shellToPerl {
 			push(@perlLines, $leadingSpaces.qq/while ($1$operator$3) {/);
 		}
 
+		elsif ($shellLine =~ /^while\s+true/) {
+			push(@perlLines, $leadingSpaces.qq/while (1) {/);
+		}
 
 		# if [ -d /dev/null ]
 		elsif ($shellLine =~ /^(\w+)\s+\[\s+(-\w)\s+(.*)\s+\]/) {
@@ -186,7 +238,7 @@ sub shellToPerl {
                         if ($1 eq "elif") {
                                 $if = "} elsif";
                         }
-			push(@perlLines, $leadingSpaces.qq/$if ($2 '$3')/);	
+			push(@perlLines, $leadingSpaces.qq/$if ($2 '$3') {/);	
 		}
 		# if test -r /dev/null
 		elsif ($shellLine =~ /^(\w+)\s+test\s+(-\w)\s+(.*)/ and containSlash($shellLine)) {
@@ -194,7 +246,7 @@ sub shellToPerl {
                         if ($1 eq "elif") {
                                 $if = "} elsif";
                         }
-			push(@perlLines, $leadingSpaces.qq/$if ($2 '$3')/);
+			push(@perlLines, $leadingSpaces.qq/$if ($2 '$3') {/);
 		}
 	}	
 	printPerlLines(@perlLines);
@@ -218,6 +270,7 @@ sub containDollar {
 sub evalLeftHandSide {
 	my $string = $_[0];
 	$string =~ s/`//g;
+	$string =~ s/'//g;
 	$string =~ s/expr//;
 	$string =~ s/\(//g;
 	$string =~ s/\)//g;
