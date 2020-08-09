@@ -27,7 +27,6 @@ sub preProcess {
 		push(@perlLines, qq\$leadingSpaces#$1\);
 		$shellLine =~ s/$1//;
 		$shellLine =~ s/#//;
-		$shellLine =~ s/\s+//g;
 	}
 
 	# replace arg
@@ -42,6 +41,11 @@ sub preProcess {
 	return $shellLine;
 }
 
+sub nFlagTurnedOn {
+	my $string = $_[0];
+	return $string =~ /echo -n/;
+}
+
 sub containAnd {
 	my $string = $_[0];
 	my @shells = split('&&', $string);
@@ -54,8 +58,9 @@ sub containAnd {
 		}
 		elsif ($shell =~ /echo (.*)/) {
                         # handle -n flag.
-                        if (containSlash($shell)) {
-                                my $temp = $shell;
+                        if (nFlagTurnedOn($shell)) {
+                                my $temp = $1;
+				$temp =~ s/-n//;
                                 $shell = removeTrailingNewLine($temp);
                         }
 
@@ -98,7 +103,6 @@ sub shellToPerl {
 		
 		my $temp = $shellLine;
 		$shellLine = preProcess($temp);
-	
 		# start line
 		if ($shellLine =~ /^#!.*/) {
 			push(@perlLines, "#!/usr/bin/perl -w");
@@ -114,8 +118,9 @@ sub shellToPerl {
 		# echo
 		elsif ($shellLine =~ /echo (.*)/) {
 			# handle -n flag.
-			if (containSlash($shellLine)) {
-				my $temp = $shellLine;
+			if (nFlagTurnedOn($shellLine)) {
+				my $temp = $1;
+				$temp =~ s/-n//;
 				$shellLine = removeTrailingNewLine($temp);	
 			}
 
@@ -243,7 +248,7 @@ sub shellToPerl {
 			push(@perlLines, $leadingSpaces.qq/$if ('$2'$operator'$4') {/);
 		}
 
-		elsif ($shellLine =~ /^(\w+)\s+test\s+(\$\w+)\s*(-\S*)\s*(\$\w+)/) {
+		elsif ($shellLine =~ /^(\w+)\s+test\s+(\$\w+)\s*(-\S*)\s*(\$\S+)/) {
 			my $operator = getOperator($3);
 			my $if = $1;
 			if ($1 eq "elif") {
@@ -253,7 +258,7 @@ sub shellToPerl {
 		
 		}
 
-		elsif ($shellLine =~ /^(\w+)\s+test\s+(@\w+)\s*(-\S*)\s*(\$\w+)/) {
+		elsif ($shellLine =~ /^(\w+)\s+test\s+(@\w+)\s*(-\S*)\s*(\$\S+)/) {
 			my $operator = getOperator($3);
 			my $if = $1;
 			if ($1 eq "elif") {
@@ -273,7 +278,7 @@ sub shellToPerl {
 		
 		}
 
-		elsif ($shellLine =~ /^(\w+)\s+test\s+(\$\w+)\s*(-\S)\s*([0-9]+)/) {
+		elsif ($shellLine =~ /^(\w+)\s+test\s+(\$\w+)\s*(-\S*)\s*([0-9]+)/) {
 			my $operator = getOperator($3);
 			my $if = $1;
 			if ($1 eq "elif") {
@@ -305,6 +310,8 @@ sub shellToPerl {
                         }
 			push(@perlLines, $leadingSpaces.qq/$if ($2 '$3') {/);	
 		}
+		elsif ($shellLine =~ /^(\w+)\s+\[\s+([\w\$\@]+)\s+([\w\$\@\+-=]+)\s+(\w+)\]/) {
+		}
 		# if test -r /dev/null
 		elsif ($shellLine =~ /^(\w+)\s+test\s+(-\w)\s+(.*)/ and containSlash($shellLine)) {
 			my $if = $1;
@@ -313,6 +320,7 @@ sub shellToPerl {
                         }
 			push(@perlLines, $leadingSpaces.qq/$if ($2 '$3') {/);
 		}
+		
 	}	
 	printPerlLines(@perlLines);
 }
@@ -320,6 +328,7 @@ sub shellToPerl {
 sub removeTrailingNewLine {
 	my $string = $_[0];
 	$string =~ s/\R//g;
+	$string =~ s/\n$//;
 	return $string;
 }
 
@@ -342,6 +351,7 @@ sub evalLeftHandSide {
 	my $string = $_[0];
 	$string =~ s/`//g;
 	$string =~ s/'//g;
+	$string =~ s/"//g;
 	$string =~ s/expr//;
 	if ($string =~ /(\w+)\)/) {
 		my $extract = $1;
