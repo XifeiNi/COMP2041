@@ -9,6 +9,7 @@ if ($#ARGV < 0) {
 	shellToPerl(@shellFile);
 }
 
+my $inFunctionScope = 0;
 sub preProcess {
 	my $shellLine = $_[0];
 	my $leadingSpaces = getLeadingSpaces($shellLine);
@@ -46,11 +47,44 @@ sub containAnd {
 	my @shells = split('&&', $string);
 	my $retVal = "";
 	foreach $shell (@shells) {
-		
-	} 	
+		if ($shell =~ /test\s+(.+)\s+(-[^ ]+)\s+(.+)/) {
+			my $operator = getOperator($2);
+			my $left = evalLeftHandSide($1);
+			$retVal = $retVal." and $left $operator $3";	
+		}
+		elsif ($shell =~ /echo (.*)/) {
+                        # handle -n flag.
+                        if (containSlash($shell)) {
+                                my $temp = $shell;
+                                $shell = removeTrailingNewLine($temp);
+                        }
+
+                        $shell =~ s?echo\s*['|"]{0,1}(.*)['|"]{0,1}?$1?;
+                        $shell =~ s?'??;
+			$shell =~ s/^\s//;
+                        $shell =~ s?"$??;
+                        $shell =~ s?"?\\"?g;
+                	$retVal = $retVal." and print\"$shell\\n\"";
+		} 
+
+		elsif ($shell =~ /return (.*)/) {
+                        if ($1 =~ /1/) {
+                                $shell =~ s/1/0/;
+                        } else {
+                                $shell =~ s/0/1/;
+                        }
+               		$retVal = $retVal." and $shell";
+		 }
+
+		else {
+			$retVal = $retVal." and ".$shell;
+		}
+	}
+	$retVal = $retVal.";";
+	$retVal =~ s/^ and //;
+	return $retVal; 	
 }
 
-my $inFunctionScope = 0;
 sub shellToPerl {
 	@perlLines = ();
 	foreach my $shellLine (@_) {
@@ -171,6 +205,11 @@ sub shellToPerl {
 
 		# return
 		elsif ($shellLine =~ /return (.*)/) {
+			if ($1 =~ /1/) {
+				$shellLine =~ s/1/0/;
+			} else {
+				$shellLine =~ s/0/1/;
+			}
 			push(@perlLines, $leadingSpaces.$shellLine.";");			
 		}
 
@@ -204,7 +243,7 @@ sub shellToPerl {
 			push(@perlLines, $leadingSpaces.qq/$if ('$2'$operator'$4') {/);
 		}
 
-		elsif ($shellLine =~ /^(\w+)\s+test\s+(\$\w+)\s*(-.*)\s*(\$\w+)/) {
+		elsif ($shellLine =~ /^(\w+)\s+test\s+(\$\w+)\s*(-\S*)\s*(\$\w+)/) {
 			my $operator = getOperator($3);
 			my $if = $1;
 			if ($1 eq "elif") {
@@ -214,7 +253,7 @@ sub shellToPerl {
 		
 		}
 
-		elsif ($shellLine =~ /^(\w+)\s+test\s+(@\w+)\s*(-.*)\s*(\$\w+)/) {
+		elsif ($shellLine =~ /^(\w+)\s+test\s+(@\w+)\s*(-\S*)\s*(\$\w+)/) {
 			my $operator = getOperator($3);
 			my $if = $1;
 			if ($1 eq "elif") {
@@ -224,7 +263,7 @@ sub shellToPerl {
 		
 		}
 
-		elsif ($shellLine =~ /^(\w+)\s+test\s+(@\w+)\s*(-.*)\s*([0-9]+)/) {
+		elsif ($shellLine =~ /^(\w+)\s+test\s+(@\w+)\s*(-\S*)\s*([0-9]+)/) {
 			my $operator = getOperator($3);
 			my $if = $1;
 			if ($1 eq "elif") {
@@ -234,7 +273,7 @@ sub shellToPerl {
 		
 		}
 
-		elsif ($shellLine =~ /^(\w+)\s+test\s+(\$\w+)\s*(-.*)\s*([0-9]+)/) {
+		elsif ($shellLine =~ /^(\w+)\s+test\s+(\$\w+)\s*(-\S)\s*([0-9]+)/) {
 			my $operator = getOperator($3);
 			my $if = $1;
 			if ($1 eq "elif") {
@@ -244,7 +283,7 @@ sub shellToPerl {
 		}
 
 		# while test $number -le $finish
-		elsif ($shellLine =~ /^while\s+test\s+(\$\w+)\s*(-.+)\s*(\$\w+)/) {
+		elsif ($shellLine =~ /^while\s+test\s+(\$\w+)\s*(-\S+)\s*(\$\w+)/) {
 			my $operator = getOperator($2);
 			push(@perlLines, $leadingSpaces.qq/while ($1$operator$3) {/);
 		}
@@ -304,8 +343,15 @@ sub evalLeftHandSide {
 	$string =~ s/`//g;
 	$string =~ s/'//g;
 	$string =~ s/expr//;
+	if ($string =~ /(\w+)\)/) {
+		my $extract = $1;
+		if (not $extract =~ /\d/) {
+			$string =~ s/$extract/\$$extract/;
+		}
+	}
 	$string =~ s/\(//g;
 	$string =~ s/\)//g;
+	
 	return $string;	
 }
 
